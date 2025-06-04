@@ -5,24 +5,33 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Calendar, MapPin, Users, Clock, DollarSign, Star, ArrowLeft, Share2, Heart, Ticket } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Calendar, MapPin, Users, Clock, DollarSign, Star, ArrowLeft, Share2, Heart, Ticket, Download, CreditCard } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { eventService, Event } from "@/services/eventService";
 import { ticketService } from "@/services/ticketService";
+import { authService } from "@/services/authService";
+import { emailService } from "@/services/emailService";
+import { qrService } from "@/services/qrService";
+import { paymentService, PaymentData } from "@/services/paymentService";
 
 const EventDetails = () => {
   const { id } = useParams();
   const { toast } = useToast();
   const [isRegistering, setIsRegistering] = useState(false);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [event, setEvent] = useState<Event | null>(null);
+  const [user, setUser] = useState(authService.getCurrentUser());
+  const [showPayment, setShowPayment] = useState(false);
   const [registrationData, setRegistrationData] = useState({
-    firstName: "",
-    lastName: "",
-    email: "",
+    firstName: user?.firstName || "",
+    lastName: user?.lastName || "",
+    email: user?.email || "",
     phone: "",
     specialRequests: ""
   });
+  const [paymentMethod, setPaymentMethod] = useState("Credit Card");
 
   // Load event data
   useEffect(() => {
@@ -36,62 +45,156 @@ const EventDetails = () => {
     e.preventDefault();
     if (!event) return;
 
+    if (event.price > 0) {
+      setShowPayment(true);
+      return;
+    }
+
+    // Free event registration
+    processRegistration();
+  };
+
+  const processRegistration = async (transactionId?: string) => {
+    if (!event) return;
+
     setIsRegistering(true);
 
-    setTimeout(() => {
-      try {
-        // Register for event (increase attendee count)
-        const success = eventService.registerForEvent(event.id);
+    try {
+      // Register for event
+      const success = eventService.registerForEvent(event.id);
+      
+      if (success) {
+        // Create ticket
+        const ticket = ticketService.purchaseTicket(
+          {
+            eventId: event.id,
+            ticketType: 'general',
+            userInfo: {
+              firstName: registrationData.firstName,
+              lastName: registrationData.lastName,
+              email: registrationData.email,
+              phone: registrationData.phone
+            }
+          },
+          user?.id || 1,
+          event.price
+        );
+
+        // Generate QR code
+        const qrCodeDataUrl = qrService.generateQRCode(ticket.id);
         
-        if (success) {
-          // Create ticket
-          ticketService.purchaseTicket(
-            {
-              eventId: event.id,
-              ticketType: 'general',
-              userInfo: {
-                firstName: registrationData.firstName,
-                lastName: registrationData.lastName,
-                email: registrationData.email,
-                phone: registrationData.phone
-              }
-            },
-            1, // Mock user ID
-            event.price
+        // Generate downloadable ticket
+        const ticketImageDataUrl = qrService.generateTicketImage({
+          ticketId: ticket.id,
+          eventTitle: event.title,
+          eventDate: event.date,
+          eventLocation: event.location,
+          userName: `${registrationData.firstName} ${registrationData.lastName}`
+        });
+
+        // Send confirmation email
+        try {
+          await emailService.sendBookingConfirmation(
+            registrationData.email,
+            `${registrationData.firstName} ${registrationData.lastName}`,
+            event.title,
+            event.date,
+            event.location,
+            ticket.id,
+            qrCodeDataUrl
           );
-
-          toast({
-            title: "Registration Successful!",
-            description: "You've been registered for the event. Check your email for confirmation.",
-          });
-
-          // Update local event state
-          setEvent(prev => prev ? {...prev, attendees: prev.attendees + 1} : null);
-          
-          setRegistrationData({
-            firstName: "",
-            lastName: "",
-            email: "",
-            phone: "",
-            specialRequests: ""
-          });
-        } else {
-          toast({
-            title: "Registration Failed",
-            description: "Event is full or registration failed. Please try again.",
-            variant: "destructive",
-          });
+        } catch (emailError) {
+          console.error('Email sending failed:', emailError);
         }
-      } catch (error) {
+
         toast({
-          title: "Error",
-          description: "Something went wrong. Please try again.",
+          title: "Registration Successful!",
+          description: "Confirmation email sent with your QR ticket. You can also download it below.",
+          action: (
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => qrService.downloadTicket(ticketImageDataUrl, `ticket-${ticket.id}.png`)}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Download Ticket
+            </Button>
+          ),
+        });
+
+        // Update local event state
+        setEvent(prev => prev ? {...prev, attendees: prev.attendees + 1} : null);
+        
+        setRegistrationData({
+          firstName: user?.firstName || "",
+          lastName: user?.lastName || "",
+          email: user?.email || "",
+          phone: "",
+          specialRequests: ""
+        });
+        setShowPayment(false);
+      } else {
+        toast({
+          title: "Registration Failed",
+          description: "Event is full or registration failed. Please try again.",
           variant: "destructive",
         });
-      } finally {
-        setIsRegistering(false);
       }
-    }, 2000);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Something went wrong. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRegistering(false);
+    }
+  };
+
+  const handlePayment = async () => {
+    if (!event) return;
+
+    setIsProcessingPayment(true);
+
+    try {
+      const paymentData: PaymentData = {
+        amount: event.price * 100, // Convert to cents
+        currency: 'usd',
+        eventId: event.id,
+        ticketType: 'general',
+        userInfo: {
+          firstName: registrationData.firstName,
+          lastName: registrationData.lastName,
+          email: registrationData.email,
+          phone: registrationData.phone
+        }
+      };
+
+      const result = await paymentService.processPayment(paymentData);
+
+      if (result.success) {
+        toast({
+          title: "Payment Successful!",
+          description: `Transaction ID: ${result.transactionId}`,
+        });
+        
+        await processRegistration(result.transactionId);
+      } else {
+        toast({
+          title: "Payment Failed",
+          description: result.error || "Payment processing failed.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Payment Error",
+        description: "Something went wrong with payment processing.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessingPayment(false);
+    }
   };
 
   const handleShare = () => {
@@ -123,6 +226,8 @@ const EventDetails = () => {
       </div>
     );
   }
+
+  const fees = paymentService.calculateFees(event.price * 100);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50">
@@ -270,92 +375,151 @@ const EventDetails = () => {
               <CardHeader>
                 <CardTitle className="flex items-center">
                   <Ticket className="h-5 w-5 mr-2" />
-                  Register for Event
+                  {showPayment ? "Payment Details" : "Register for Event"}
                 </CardTitle>
-                <CardDescription>Secure your spot at this amazing event</CardDescription>
+                <CardDescription>
+                  {showPayment ? "Complete your payment to secure your spot" : "Secure your spot at this amazing event"}
+                </CardDescription>
               </CardHeader>
               
               <CardContent>
-                <form onSubmit={handleRegistration} className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="firstName">First Name *</Label>
-                      <Input
-                        id="firstName"
-                        value={registrationData.firstName}
-                        onChange={(e) => setRegistrationData(prev => ({ ...prev, firstName: e.target.value }))}
-                        placeholder="John"
-                        required
-                      />
+                {showPayment ? (
+                  <div className="space-y-4">
+                    <div className="border rounded-lg p-4 bg-gray-50">
+                      <h4 className="font-medium mb-2">Order Summary</h4>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span>Ticket Price:</span>
+                          <span>${(fees.subtotal / 100).toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Processing Fee:</span>
+                          <span>${(fees.fees / 100).toFixed(2)}</span>
+                        </div>
+                        <div className="border-t pt-2 flex justify-between font-medium">
+                          <span>Total:</span>
+                          <span>${(fees.total / 100).toFixed(2)}</span>
+                        </div>
+                      </div>
                     </div>
+
                     <div>
-                      <Label htmlFor="lastName">Last Name *</Label>
-                      <Input
-                        id="lastName"
-                        value={registrationData.lastName}
-                        onChange={(e) => setRegistrationData(prev => ({ ...prev, lastName: e.target.value }))}
-                        placeholder="Doe"
-                        required
-                      />
+                      <Label htmlFor="paymentMethod">Payment Method</Label>
+                      <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {paymentService.getPaymentMethods().map(method => (
+                            <SelectItem key={method} value={method}>
+                              {method}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="flex space-x-2">
+                      <Button 
+                        variant="outline" 
+                        onClick={() => setShowPayment(false)}
+                        className="flex-1"
+                      >
+                        Back
+                      </Button>
+                      <Button 
+                        onClick={handlePayment}
+                        disabled={isProcessingPayment}
+                        className="flex-1"
+                      >
+                        <CreditCard className="h-4 w-4 mr-2" />
+                        {isProcessingPayment ? "Processing..." : "Pay Now"}
+                      </Button>
                     </div>
                   </div>
-                  
-                  <div>
-                    <Label htmlFor="email">Email Address *</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={registrationData.email}
-                      onChange={(e) => setRegistrationData(prev => ({ ...prev, email: e.target.value }))}
-                      placeholder="john@example.com"
-                      required
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="phone">Phone Number</Label>
-                    <Input
-                      id="phone"
-                      type="tel"
-                      value={registrationData.phone}
-                      onChange={(e) => setRegistrationData(prev => ({ ...prev, phone: e.target.value }))}
-                      placeholder="(555) 123-4567"
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="specialRequests">Special Requests</Label>
-                    <Textarea
-                      id="specialRequests"
-                      value={registrationData.specialRequests}
-                      onChange={(e) => setRegistrationData(prev => ({ ...prev, specialRequests: e.target.value }))}
-                      placeholder="Any dietary restrictions or special accommodations?"
-                      className="min-h-[80px]"
-                    />
-                  </div>
-                  
-                  <div className="border-t pt-4">
-                    <div className="flex justify-between items-center mb-4">
-                      <span className="font-medium">Total</span>
-                      <span className="text-2xl font-bold text-blue-600">
-                        {event.price > 0 ? `$${event.price}` : 'Free'}
-                      </span>
+                ) : (
+                  <form onSubmit={handleRegistration} className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="firstName">First Name *</Label>
+                        <Input
+                          id="firstName"
+                          value={registrationData.firstName}
+                          onChange={(e) => setRegistrationData(prev => ({ ...prev, firstName: e.target.value }))}
+                          placeholder="John"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="lastName">Last Name *</Label>
+                        <Input
+                          id="lastName"
+                          value={registrationData.lastName}
+                          onChange={(e) => setRegistrationData(prev => ({ ...prev, lastName: e.target.value }))}
+                          placeholder="Doe"
+                          required
+                        />
+                      </div>
                     </div>
                     
-                    <Button 
-                      type="submit" 
-                      className="w-full h-12 text-lg rounded-xl"
-                      disabled={isRegistering || event.attendees >= event.maxAttendees}
-                    >
-                      {isRegistering ? "Processing..." : 
-                       event.attendees >= event.maxAttendees ? "Event Full" : "Register Now"}
-                    </Button>
-                  </div>
-                </form>
+                    <div>
+                      <Label htmlFor="email">Email Address *</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        value={registrationData.email}
+                        onChange={(e) => setRegistrationData(prev => ({ ...prev, email: e.target.value }))}
+                        placeholder="john@example.com"
+                        required
+                      />
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="phone">Phone Number</Label>
+                      <Input
+                        id="phone"
+                        type="tel"
+                        value={registrationData.phone}
+                        onChange={(e) => setRegistrationData(prev => ({ ...prev, phone: e.target.value }))}
+                        placeholder="(555) 123-4567"
+                      />
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="specialRequests">Special Requests</Label>
+                      <Textarea
+                        id="specialRequests"
+                        value={registrationData.specialRequests}
+                        onChange={(e) => setRegistrationData(prev => ({ ...prev, specialRequests: e.target.value }))}
+                        placeholder="Any dietary restrictions or special accommodations?"
+                        className="min-h-[80px]"
+                      />
+                    </div>
+                    
+                    <div className="border-t pt-4">
+                      <div className="flex justify-between items-center mb-4">
+                        <span className="font-medium">Total</span>
+                        <span className="text-2xl font-bold text-blue-600">
+                          {event.price > 0 ? `$${event.price}` : 'Free'}
+                        </span>
+                      </div>
+                      
+                      <Button 
+                        type="submit" 
+                        className="w-full h-12 text-lg rounded-xl"
+                        disabled={isRegistering || event.attendees >= event.maxAttendees}
+                      >
+                        {isRegistering ? "Processing..." : 
+                         event.attendees >= event.maxAttendees ? "Event Full" : 
+                         event.price > 0 ? "Continue to Payment" : "Register Now"}
+                      </Button>
+                    </div>
+                  </form>
+                )}
                 
                 <div className="mt-4 text-center">
                   <p className="text-sm text-gray-600">
-                    Secure registration • Instant confirmation
+                    Secure registration • Instant confirmation • QR ticket included
                   </p>
                 </div>
               </CardContent>
