@@ -7,12 +7,14 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar, MapPin, Users, Clock, DollarSign, Image as ImageIcon, Save, ArrowLeft } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import { eventService, CreateEventData } from "@/services/eventService";
 
 const CreateEvent = () => {
   const { toast } = useToast();
-  const [formData, setFormData] = useState({
+  const navigate = useNavigate();
+  const [formData, setFormData] = useState<CreateEventData>({
     title: "",
     description: "",
     category: "",
@@ -26,7 +28,7 @@ const CreateEvent = () => {
 
   const categories = ["Technology", "Workshop", "Music", "Business", "Art", "Fitness", "Food", "Sports", "Education"];
 
-  const handleInputChange = (field: string, value: string) => {
+  const handleInputChange = (field: keyof CreateEventData, value: string) => {
     setFormData(prev => ({
       ...prev,
       [field]: value
@@ -46,24 +48,40 @@ const CreateEvent = () => {
       return;
     }
 
-    // Simulate event creation
-    toast({
-      title: "Event Created Successfully!",
-      description: `${formData.title} has been created and is now live.`,
-    });
+    try {
+      // Create event using the service
+      const newEvent = eventService.createEvent(formData);
+      
+      toast({
+        title: "Event Created Successfully!",
+        description: `${formData.title} has been created and is now live.`,
+      });
 
-    // Reset form
-    setFormData({
-      title: "",
-      description: "",
-      category: "",
-      date: "",
-      time: "",
-      location: "",
-      maxAttendees: "",
-      price: "",
-      image: ""
-    });
+      // Reset form
+      setFormData({
+        title: "",
+        description: "",
+        category: "",
+        date: "",
+        time: "",
+        location: "",
+        maxAttendees: "",
+        price: "",
+        image: ""
+      });
+
+      // Navigate to the events page or the new event's details
+      setTimeout(() => {
+        navigate('/events');
+      }, 1500);
+      
+    } catch (error) {
+      toast({
+        title: "Error Creating Event",
+        description: "There was an error creating your event. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (

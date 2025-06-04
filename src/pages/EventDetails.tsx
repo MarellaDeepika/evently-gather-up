@@ -1,5 +1,4 @@
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,11 +8,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Calendar, MapPin, Users, Clock, DollarSign, Star, ArrowLeft, Share2, Heart, Ticket } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import { eventService, Event } from "@/services/eventService";
+import { ticketService } from "@/services/ticketService";
 
 const EventDetails = () => {
   const { id } = useParams();
   const { toast } = useToast();
   const [isRegistering, setIsRegistering] = useState(false);
+  const [event, setEvent] = useState<Event | null>(null);
   const [registrationData, setRegistrationData] = useState({
     firstName: "",
     lastName: "",
@@ -22,84 +24,81 @@ const EventDetails = () => {
     specialRequests: ""
   });
 
-  // Mock event data - in a real app, this would be fetched based on the ID
-  const event = {
-    id: parseInt(id || "1"),
-    title: "Tech Conference 2024",
-    description: "Join industry leaders for cutting-edge tech insights and networking opportunities. This comprehensive conference will cover the latest trends in artificial intelligence, web development, cybersecurity, and digital transformation. Connect with like-minded professionals and gain valuable knowledge from expert speakers.",
-    fullDescription: `
-      This three-day conference brings together technology professionals, innovators, and thought leaders from around the world. 
-
-      **What You'll Learn:**
-      • Latest trends in AI and Machine Learning
-      • Modern web development frameworks
-      • Cybersecurity best practices
-      • Digital transformation strategies
-      • Cloud computing innovations
-
-      **Who Should Attend:**
-      • Software developers and engineers
-      • IT professionals and managers
-      • Tech entrepreneurs and founders
-      • Students and recent graduates
-      • Anyone interested in technology trends
-
-      **Event Highlights:**
-      • 20+ expert speakers
-      • Interactive workshops
-      • Networking sessions
-      • Exhibition hall with 50+ vendors
-      • Welcome reception and closing party
-    `,
-    date: "March 15, 2024",
-    time: "9:00 AM - 6:00 PM",
-    location: "San Francisco Convention Center, CA",
-    attendees: 245,
-    maxAttendees: 500,
-    price: 299,
-    image: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=1200&h=600&fit=crop",
-    category: "Technology",
-    organizer: {
-      name: "Tech Events Inc.",
-      avatar: "TE",
-      rating: 4.8,
-      eventsCount: 47
-    },
-    speakers: [
-      { name: "Sarah Johnson", title: "AI Research Director", company: "TechCorp", avatar: "SJ" },
-      { name: "Michael Chen", title: "Cloud Architect", company: "CloudTech", avatar: "MC" },
-      { name: "Emily Rodriguez", title: "Cybersecurity Expert", company: "SecureNet", avatar: "ER" }
-    ],
-    tags: ["Technology", "AI", "Web Development", "Cybersecurity", "Networking"],
-    rating: 4.7,
-    reviews: 89
-  };
+  // Load event data
+  useEffect(() => {
+    if (id) {
+      const loadedEvent = eventService.getEventById(parseInt(id));
+      setEvent(loadedEvent);
+    }
+  }, [id]);
 
   const handleRegistration = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!event) return;
+
     setIsRegistering(true);
 
     setTimeout(() => {
-      setIsRegistering(false);
-      toast({
-        title: "Registration Successful!",
-        description: "You've been registered for the event. Check your email for confirmation.",
-      });
-      setRegistrationData({
-        firstName: "",
-        lastName: "",
-        email: "",
-        phone: "",
-        specialRequests: ""
-      });
+      try {
+        // Register for event (increase attendee count)
+        const success = eventService.registerForEvent(event.id);
+        
+        if (success) {
+          // Create ticket
+          ticketService.purchaseTicket(
+            {
+              eventId: event.id,
+              ticketType: 'general',
+              userInfo: {
+                firstName: registrationData.firstName,
+                lastName: registrationData.lastName,
+                email: registrationData.email,
+                phone: registrationData.phone
+              }
+            },
+            1, // Mock user ID
+            event.price
+          );
+
+          toast({
+            title: "Registration Successful!",
+            description: "You've been registered for the event. Check your email for confirmation.",
+          });
+
+          // Update local event state
+          setEvent(prev => prev ? {...prev, attendees: prev.attendees + 1} : null);
+          
+          setRegistrationData({
+            firstName: "",
+            lastName: "",
+            email: "",
+            phone: "",
+            specialRequests: ""
+          });
+        } else {
+          toast({
+            title: "Registration Failed",
+            description: "Event is full or registration failed. Please try again.",
+            variant: "destructive",
+          });
+        }
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "Something went wrong. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsRegistering(false);
+      }
     }, 2000);
   };
 
   const handleShare = () => {
     if (navigator.share) {
       navigator.share({
-        title: event.title,
-        text: event.description,
+        title: event?.title,
+        text: event?.description,
         url: window.location.href,
       });
     } else {
@@ -110,6 +109,20 @@ const EventDetails = () => {
       });
     }
   };
+
+  if (!event) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Event Not Found</h2>
+          <p className="text-gray-600 mb-4">The event you're looking for doesn't exist.</p>
+          <Button asChild>
+            <Link to="/events">Back to Events</Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50">
@@ -185,17 +198,14 @@ const EventDetails = () => {
                     <CardDescription className="text-lg">{event.description}</CardDescription>
                   </div>
                   <div className="text-right">
-                    <div className="text-3xl font-bold text-blue-600">${event.price}</div>
+                    <div className="text-3xl font-bold text-blue-600">
+                      {event.price > 0 ? `$${event.price}` : 'Free'}
+                    </div>
                     <div className="text-sm text-gray-600">per ticket</div>
                   </div>
                 </div>
                 
                 <div className="flex items-center space-x-4 pt-4">
-                  <div className="flex items-center">
-                    <Star className="h-4 w-4 text-yellow-400 mr-1" />
-                    <span className="font-medium">{event.rating}</span>
-                    <span className="text-gray-600 ml-1">({event.reviews} reviews)</span>
-                  </div>
                   <div className="flex items-center text-gray-600">
                     <Users className="h-4 w-4 mr-1" />
                     <span>{event.attendees} / {event.maxAttendees} attendees</span>
@@ -225,18 +235,13 @@ const EventDetails = () => {
                   <div className="space-y-4">
                     <div className="flex items-center">
                       <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center mr-3">
-                        <span className="text-sm font-medium text-blue-600">{event.organizer.avatar}</span>
+                        <span className="text-sm font-medium text-blue-600">
+                          {event.organizer.split(' ').map(n => n[0]).join('')}
+                        </span>
                       </div>
                       <div>
-                        <div className="font-medium">{event.organizer.name}</div>
-                        <div className="text-sm text-gray-600">{event.organizer.eventsCount} events hosted</div>
-                      </div>
-                    </div>
-                    <div className="flex items-center">
-                      <Clock className="h-5 w-5 text-gray-400 mr-3" />
-                      <div>
-                        <div className="font-medium">Duration</div>
-                        <div className="text-sm text-gray-600">9 hours</div>
+                        <div className="font-medium">{event.organizer}</div>
+                        <div className="text-sm text-gray-600">Event Organizer</div>
                       </div>
                     </div>
                   </div>
@@ -254,55 +259,6 @@ const EventDetails = () => {
                       style={{ width: `${(event.attendees / event.maxAttendees) * 100}%` }}
                     ></div>
                   </div>
-                </div>
-
-                {/* Tags */}
-                <div className="flex flex-wrap gap-2">
-                  {event.tags.map((tag, index) => (
-                    <Badge key={index} variant="outline">
-                      {tag}
-                    </Badge>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Speakers */}
-            <Card className="border-0 bg-white/80 backdrop-blur">
-              <CardHeader>
-                <CardTitle>Featured Speakers</CardTitle>
-                <CardDescription>Learn from industry experts</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid md:grid-cols-3 gap-4">
-                  {event.speakers.map((speaker, index) => (
-                    <div key={index} className="flex items-center space-x-3 p-4 rounded-lg bg-gray-50">
-                      <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
-                        <span className="font-medium text-blue-600">{speaker.avatar}</span>
-                      </div>
-                      <div>
-                        <div className="font-medium">{speaker.name}</div>
-                        <div className="text-sm text-gray-600">{speaker.title}</div>
-                        <div className="text-sm text-gray-500">{speaker.company}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Description */}
-            <Card className="border-0 bg-white/80 backdrop-blur">
-              <CardHeader>
-                <CardTitle>About This Event</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="prose max-w-none">
-                  {event.fullDescription.split('\n').map((paragraph, index) => (
-                    <p key={index} className="mb-4 text-gray-700 leading-relaxed">
-                      {paragraph}
-                    </p>
-                  ))}
                 </div>
               </CardContent>
             </Card>
@@ -381,22 +337,25 @@ const EventDetails = () => {
                   <div className="border-t pt-4">
                     <div className="flex justify-between items-center mb-4">
                       <span className="font-medium">Total</span>
-                      <span className="text-2xl font-bold text-blue-600">${event.price}</span>
+                      <span className="text-2xl font-bold text-blue-600">
+                        {event.price > 0 ? `$${event.price}` : 'Free'}
+                      </span>
                     </div>
                     
                     <Button 
                       type="submit" 
                       className="w-full h-12 text-lg rounded-xl"
-                      disabled={isRegistering}
+                      disabled={isRegistering || event.attendees >= event.maxAttendees}
                     >
-                      {isRegistering ? "Processing..." : "Register Now"}
+                      {isRegistering ? "Processing..." : 
+                       event.attendees >= event.maxAttendees ? "Event Full" : "Register Now"}
                     </Button>
                   </div>
                 </form>
                 
                 <div className="mt-4 text-center">
                   <p className="text-sm text-gray-600">
-                    Secure payment • Instant confirmation
+                    Secure registration • Instant confirmation
                   </p>
                 </div>
               </CardContent>

@@ -1,5 +1,4 @@
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -7,95 +6,24 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar, MapPin, Users, Search, Filter } from "lucide-react";
 import { Link } from "react-router-dom";
+import { eventService, Event } from "@/services/eventService";
 
 const Events = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedLocation, setSelectedLocation] = useState("all");
+  const [events, setEvents] = useState<Event[]>([]);
 
-  const events = [
-    {
-      id: 1,
-      title: "Tech Conference 2024",
-      description: "Join industry leaders for cutting-edge tech insights and networking opportunities",
-      date: "March 15, 2024",
-      location: "San Francisco, CA",
-      attendees: 245,
-      maxAttendees: 500,
-      price: "$299",
-      image: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&h=400&fit=crop",
-      category: "Technology",
-      organizer: "Tech Events Inc."
-    },
-    {
-      id: 2,
-      title: "Creative Workshop",
-      description: "Hands-on creative design workshop for professionals and enthusiasts",
-      date: "March 22, 2024",
-      location: "New York, NY",
-      attendees: 89,
-      maxAttendees: 100,
-      price: "$150",
-      image: "https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=800&h=400&fit=crop",
-      category: "Workshop",
-      organizer: "Creative Studio"
-    },
-    {
-      id: 3,
-      title: "Music Festival",
-      description: "Three days of amazing music and entertainment with top artists",
-      date: "April 5-7, 2024",
-      location: "Austin, TX",
-      attendees: 1200,
-      maxAttendees: 5000,
-      price: "$450",
-      image: "https://images.unsplash.com/photo-1459749411175-04bf5292ceea?w=800&h=400&fit=crop",
-      category: "Music",
-      organizer: "Festival Productions"
-    },
-    {
-      id: 4,
-      title: "Business Summit",
-      description: "Network with entrepreneurs and learn from successful business leaders",
-      date: "March 28, 2024",
-      location: "Chicago, IL",
-      attendees: 156,
-      maxAttendees: 300,
-      price: "$199",
-      image: "https://images.unsplash.com/photo-1515187029135-18ee286d815b?w=800&h=400&fit=crop",
-      category: "Business",
-      organizer: "Business Network"
-    },
-    {
-      id: 5,
-      title: "Art Exhibition",
-      description: "Contemporary art exhibition featuring emerging and established artists",
-      date: "April 12, 2024",
-      location: "Los Angeles, CA",
-      attendees: 67,
-      maxAttendees: 200,
-      price: "$75",
-      image: "https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=800&h=400&fit=crop",
-      category: "Art",
-      organizer: "Gallery Modern"
-    },
-    {
-      id: 6,
-      title: "Fitness Bootcamp",
-      description: "High-intensity fitness bootcamp for all levels with professional trainers",
-      date: "March 30, 2024",
-      location: "Miami, FL",
-      attendees: 34,
-      maxAttendees: 50,
-      price: "$95",
-      image: "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=800&h=400&fit=crop",
-      category: "Fitness",
-      organizer: "FitLife Academy"
-    }
-  ];
+  // Load events from service
+  useEffect(() => {
+    const loadedEvents = eventService.getAllEvents();
+    setEvents(loadedEvents);
+  }, []);
 
-  const categories = ["all", "Technology", "Workshop", "Music", "Business", "Art", "Fitness"];
-  const locations = ["all", "San Francisco, CA", "New York, NY", "Austin, TX", "Chicago, IL", "Los Angeles, CA", "Miami, FL"];
+  const categories = ["all", "Technology", "Workshop", "Music", "Business", "Art", "Fitness", "Food", "Sports", "Education"];
+  
+  // Extract unique locations from events
+  const locations = ["all", ...Array.from(new Set(events.map(event => event.location)))];
 
   const filteredEvents = events.filter(event => {
     const matchesSearch = event.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -226,7 +154,9 @@ const Events = () => {
                   {event.category}
                 </Badge>
                 <div className="absolute top-4 right-4 bg-white/90 rounded-lg px-2 py-1">
-                  <span className="text-sm font-medium text-gray-900">{event.price}</span>
+                  <span className="text-sm font-medium text-gray-900">
+                    {event.price > 0 ? `$${event.price}` : 'Free'}
+                  </span>
                 </div>
               </div>
               <CardHeader>
@@ -237,7 +167,7 @@ const Events = () => {
                 <div className="space-y-3">
                   <div className="flex items-center text-sm text-gray-600">
                     <Calendar className="mr-2 h-4 w-4" />
-                    {event.date}
+                    {event.date} at {event.time}
                   </div>
                   <div className="flex items-center text-sm text-gray-600">
                     <MapPin className="mr-2 h-4 w-4" />
