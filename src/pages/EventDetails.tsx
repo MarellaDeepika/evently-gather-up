@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, MapPin, Users, Clock, DollarSign, Star, ArrowLeft, Share2, Heart, Ticket, Download, CreditCard } from "lucide-react";
+import { Calendar, MapPin, Users, Clock, DollarSign, Star, ArrowLeft, Share2, Heart, Ticket, Download, CreditCard, Edit, Tag } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { eventService, Event } from "@/services/eventService";
@@ -15,6 +15,8 @@ import { authService } from "@/services/authService";
 import { emailService } from "@/services/emailService";
 import { qrService } from "@/services/qrService";
 import { paymentService, PaymentData } from "@/services/paymentService";
+import { couponService } from "@/services/couponService";
+import EditEventModal from "@/components/events/EditEventModal";
 
 const EventDetails = () => {
   const { id } = useParams();
@@ -24,6 +26,9 @@ const EventDetails = () => {
   const [event, setEvent] = useState<Event | null>(null);
   const [user, setUser] = useState(authService.getCurrentUser());
   const [showPayment, setShowPayment] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [couponCode, setCouponCode] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<any>(null);
   const [registrationData, setRegistrationData] = useState({
     firstName: user?.firstName || "",
     lastName: user?.lastName || "",
@@ -40,6 +45,29 @@ const EventDetails = () => {
       setEvent(loadedEvent);
     }
   }, [id]);
+
+  const handleCouponApply = () => {
+    if (!event || !couponCode.trim()) return;
+
+    const result = couponService.validateCoupon(couponCode, event.id, event.price * 100);
+    
+    if (result.valid && result.coupon && result.discount !== undefined) {
+      setAppliedCoupon({
+        ...result.coupon,
+        discountAmount: result.discount / 100 // Convert back to dollars
+      });
+      toast({
+        title: "Coupon Applied!",
+        description: `You saved $${(result.discount / 100).toFixed(2)} with code ${result.coupon.code}`,
+      });
+    } else {
+      toast({
+        title: "Invalid Coupon",
+        description: result.error || "Please check your coupon code.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const handleRegistration = (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,11 +92,20 @@ const EventDetails = () => {
       const success = eventService.registerForEvent(event.id);
       
       if (success) {
+        // Use coupon if applied
+        if (appliedCoupon && user) {
+          couponService.useCoupon(appliedCoupon.id, user.id, event.id, appliedCoupon.discountAmount * 100);
+        }
+
         // Create ticket
+        const finalPrice = appliedCoupon 
+          ? Math.max(0, event.price - appliedCoupon.discountAmount)
+          : event.price;
+
         const ticket = ticketService.purchaseTicket(
           {
             eventId: event.id,
-            ticketType: 'general',
+            ticketType: appliedCoupon?.couponType === 'vip' ? 'vip' : 'general',
             userInfo: {
               firstName: registrationData.firstName,
               lastName: registrationData.lastName,
@@ -77,13 +114,11 @@ const EventDetails = () => {
             }
           },
           user?.id || 1,
-          event.price
+          finalPrice
         );
 
-        // Generate QR code
+        // Generate QR code and ticket
         const qrCodeDataUrl = qrService.generateQRCode(ticket.id);
-        
-        // Generate downloadable ticket
         const ticketImageDataUrl = qrService.generateTicketImage({
           ticketId: ticket.id,
           eventTitle: event.title,
@@ -109,7 +144,9 @@ const EventDetails = () => {
 
         toast({
           title: "Registration Successful!",
-          description: "Confirmation email sent with your QR ticket. You can also download it below.",
+          description: appliedCoupon 
+            ? `Saved $${appliedCoupon.discountAmount.toFixed(2)} with coupon! Confirmation email sent.`
+            : "Confirmation email sent with your QR ticket.",
           action: (
             <Button 
               variant="outline" 
@@ -125,6 +162,7 @@ const EventDetails = () => {
         // Update local event state
         setEvent(prev => prev ? {...prev, attendees: prev.attendees + 1} : null);
         
+        // Reset form
         setRegistrationData({
           firstName: user?.firstName || "",
           lastName: user?.lastName || "",
@@ -133,6 +171,8 @@ const EventDetails = () => {
           specialRequests: ""
         });
         setShowPayment(false);
+        setCouponCode("");
+        setAppliedCoupon(null);
       } else {
         toast({
           title: "Registration Failed",
@@ -157,11 +197,15 @@ const EventDetails = () => {
     setIsProcessingPayment(true);
 
     try {
+      const finalAmount = appliedCoupon 
+        ? Math.max(0, event.price - appliedCoupon.discountAmount)
+        : event.price;
+
       const paymentData: PaymentData = {
-        amount: event.price * 100, // Convert to cents
+        amount: finalAmount * 100, // Convert to cents
         currency: 'usd',
         eventId: event.id,
-        ticketType: 'general',
+        ticketType: appliedCoupon?.couponType === 'vip' ? 'vip' : 'general',
         userInfo: {
           firstName: registrationData.firstName,
           lastName: registrationData.lastName,
@@ -227,7 +271,11 @@ const EventDetails = () => {
     );
   }
 
-  const fees = paymentService.calculateFees(event.price * 100);
+  const finalPrice = appliedCoupon 
+    ? Math.max(0, event.price - appliedCoupon.discountAmount)
+    : event.price;
+  const fees = paymentService.calculateFees(finalPrice * 100);
+  const isEventOwner = user && event.organizer === "Current User"; // In real app, check actual ownership
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50">
@@ -264,10 +312,18 @@ const EventDetails = () => {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Back Navigation */}
-        <Link to="/events" className="inline-flex items-center text-blue-600 hover:text-blue-800 mb-6">
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Events
-        </Link>
+        <div className="flex justify-between items-center mb-6">
+          <Link to="/events" className="inline-flex items-center text-blue-600 hover:text-blue-800">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Events
+          </Link>
+          {isEventOwner && (
+            <Button onClick={() => setShowEditModal(true)} variant="outline">
+              <Edit className="h-4 w-4 mr-2" />
+              Edit Event
+            </Button>
+          )}
+        </div>
 
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Main Content */}
@@ -390,6 +446,16 @@ const EventDetails = () => {
                       <div className="space-y-2 text-sm">
                         <div className="flex justify-between">
                           <span>Ticket Price:</span>
+                          <span>${event.price.toFixed(2)}</span>
+                        </div>
+                        {appliedCoupon && (
+                          <div className="flex justify-between text-green-600">
+                            <span>Coupon ({appliedCoupon.code}):</span>
+                            <span>-${appliedCoupon.discountAmount.toFixed(2)}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between">
+                          <span>Subtotal:</span>
                           <span>${(fees.subtotal / 100).toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between">
@@ -499,9 +565,16 @@ const EventDetails = () => {
                     <div className="border-t pt-4">
                       <div className="flex justify-between items-center mb-4">
                         <span className="font-medium">Total</span>
-                        <span className="text-2xl font-bold text-blue-600">
-                          {event.price > 0 ? `$${event.price}` : 'Free'}
-                        </span>
+                        <div className="text-right">
+                          {appliedCoupon && event.price > 0 && (
+                            <div className="text-sm text-gray-500 line-through">
+                              ${event.price.toFixed(2)}
+                            </div>
+                          )}
+                          <span className="text-2xl font-bold text-blue-600">
+                            {finalPrice > 0 ? `$${finalPrice.toFixed(2)}` : 'Free'}
+                          </span>
+                        </div>
                       </div>
                       
                       <Button 
@@ -511,7 +584,7 @@ const EventDetails = () => {
                       >
                         {isRegistering ? "Processing..." : 
                          event.attendees >= event.maxAttendees ? "Event Full" : 
-                         event.price > 0 ? "Continue to Payment" : "Register Now"}
+                         finalPrice > 0 ? "Continue to Payment" : "Register Now"}
                       </Button>
                     </div>
                   </form>
@@ -527,6 +600,13 @@ const EventDetails = () => {
           </div>
         </div>
       </div>
+
+      <EditEventModal
+        event={event}
+        isOpen={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        onSave={(updatedEvent) => setEvent(updatedEvent)}
+      />
     </div>
   );
 };
