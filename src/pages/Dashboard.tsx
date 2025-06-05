@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Calendar, Users, BarChart3, Ticket, Settings, LogOut } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -13,7 +12,7 @@ const Dashboard = () => {
   const [user] = useState(authService.getCurrentUser());
 
   const handleSignOut = () => {
-    authService.signOut();
+    authService.logout();
     window.location.href = '/';
   };
 
@@ -60,7 +59,7 @@ const Dashboard = () => {
             </div>
             <div className="flex items-center space-x-4">
               <span className="text-sm text-gray-600">
-                Welcome, {user.firstName}!
+                Welcome, {user?.firstName}!
               </span>
               <Button variant="outline" onClick={handleSignOut}>
                 <LogOut className="h-4 w-4 mr-2" />
