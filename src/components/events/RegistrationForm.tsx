@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Ticket, CreditCard, Tag, Banknote } from "lucide-react";
+import { Ticket, CreditCard, Tag, Banknote, Smartphone } from "lucide-react";
 import { Event } from "@/services/eventService";
 import { paymentService } from "@/services/paymentService";
 import { bankPaymentService } from "@/services/bankPaymentService";
@@ -82,12 +82,28 @@ const RegistrationForm = ({
     if (grandTotal > 0) {
       setCurrentStep('payment');
     } else {
-      // Free event - proceed directly to registration
       onRegistration({ preventDefault: () => {} } as React.FormEvent);
     }
   };
 
   const availableTickets = event.maxAttendees - event.attendees;
+
+  const getPaymentIcon = (method: string) => {
+    switch (method) {
+      case 'Credit Card':
+      case 'Debit Card':
+        return <CreditCard className="h-4 w-4 mr-2" />;
+      case 'Bank Transfer':
+        return <Banknote className="h-4 w-4 mr-2" />;
+      case 'PayPal':
+      case 'Apple Pay':
+      case 'Google Pay':
+      case 'PhonePe':
+        return <Smartphone className="h-4 w-4 mr-2" />;
+      default:
+        return <CreditCard className="h-4 w-4 mr-2" />;
+    }
+  };
 
   if (currentStep === 'quantity') {
     return (
@@ -200,6 +216,36 @@ const RegistrationForm = ({
                     Credit Card
                   </div>
                 </SelectItem>
+                <SelectItem value="Debit Card">
+                  <div className="flex items-center">
+                    <CreditCard className="h-4 w-4 mr-2" />
+                    Debit Card
+                  </div>
+                </SelectItem>
+                <SelectItem value="PayPal">
+                  <div className="flex items-center">
+                    <Smartphone className="h-4 w-4 mr-2" />
+                    PayPal
+                  </div>
+                </SelectItem>
+                <SelectItem value="Apple Pay">
+                  <div className="flex items-center">
+                    <Smartphone className="h-4 w-4 mr-2" />
+                    Apple Pay
+                  </div>
+                </SelectItem>
+                <SelectItem value="Google Pay">
+                  <div className="flex items-center">
+                    <Smartphone className="h-4 w-4 mr-2" />
+                    Google Pay
+                  </div>
+                </SelectItem>
+                <SelectItem value="PhonePe">
+                  <div className="flex items-center">
+                    <Smartphone className="h-4 w-4 mr-2" />
+                    PhonePe
+                  </div>
+                </SelectItem>
                 <SelectItem value="Bank Transfer">
                   <div className="flex items-center">
                     <Banknote className="h-4 w-4 mr-2" />
@@ -223,11 +269,7 @@ const RegistrationForm = ({
               disabled={isProcessingPayment}
               className="flex-1"
             >
-              {paymentMethod === 'Credit Card' ? (
-                <CreditCard className="h-4 w-4 mr-2" />
-              ) : (
-                <Banknote className="h-4 w-4 mr-2" />
-              )}
+              {getPaymentIcon(paymentMethod)}
               {isProcessingPayment ? "Processing..." : "Pay Now"}
             </Button>
           </div>

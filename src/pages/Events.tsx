@@ -2,6 +2,8 @@
 import { useState, useEffect } from "react";
 import { eventService, Event } from "@/services/eventService";
 import { authService } from "@/services/authService";
+import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
 import EventsNavigation from "@/components/events/EventsNavigation";
 import EventsHeader from "@/components/events/EventsHeader";
 import EventsFilters from "@/components/events/EventsFilters";
@@ -15,12 +17,22 @@ const Events = () => {
   const [events, setEvents] = useState<Event[]>([]);
   const [user, setUser] = useState(authService.getCurrentUser());
 
-  // Load events from service
+  // Check authentication - redirect if not logged in
   useEffect(() => {
-    const loadedEvents = eventService.getAllEvents();
-    setEvents(loadedEvents);
-    console.log('Loaded events:', loadedEvents);
-  }, []);
+    if (!user) {
+      // Don't show anything if user is not authenticated
+      return;
+    }
+  }, [user]);
+
+  // Load events from service only if user is authenticated
+  useEffect(() => {
+    if (user) {
+      const loadedEvents = eventService.getAllEvents();
+      setEvents(loadedEvents);
+      console.log('Loaded events:', loadedEvents);
+    }
+  }, [user]);
 
   // Listen for auth changes
   useEffect(() => {
@@ -29,12 +41,39 @@ const Events = () => {
       setUser(currentUser);
     };
 
-    // Check auth on mount and set up interval to check periodically
     checkAuth();
     const interval = setInterval(checkAuth, 1000);
 
     return () => clearInterval(interval);
   }, []);
+
+  // If user is not logged in, show login prompt
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50">
+        <EventsNavigation />
+        
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+          <div className="text-center">
+            <h1 className="text-4xl font-bold text-gray-900 mb-6">
+              Sign In Required
+            </h1>
+            <p className="text-xl text-gray-600 mb-8">
+              Please sign in to view and book events
+            </p>
+            <div className="flex justify-center space-x-4">
+              <Button asChild size="lg">
+                <Link to="/login">Sign In</Link>
+              </Button>
+              <Button variant="outline" asChild size="lg">
+                <Link to="/signup">Create Account</Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const categories = ["all", "Technology", "Workshop", "Music", "Business", "Art", "Fitness", "Food", "Sports", "Education"];
   
@@ -64,14 +103,12 @@ const Events = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <EventsHeader />
 
-        {user && (
-          <div className="mb-6 p-4 bg-white/80 backdrop-blur rounded-lg border">
-            <p className="text-sm text-gray-600">
-              Welcome back, <span className="font-medium">{user.firstName} {user.lastName}</span>! 
-              You can now register for events and receive booking confirmations.
-            </p>
-          </div>
-        )}
+        <div className="mb-6 p-4 bg-white/80 backdrop-blur rounded-lg border">
+          <p className="text-sm text-gray-600">
+            Welcome back, <span className="font-medium">{user.firstName} {user.lastName}</span>! 
+            You can now register for events and receive booking confirmations.
+          </p>
+        </div>
 
         <EventsFilters
           searchTerm={searchTerm}

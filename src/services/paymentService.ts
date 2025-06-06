@@ -43,9 +43,17 @@ class PaymentService {
     }
   }
 
-  // Get payment methods (simulation)
+  // Get payment methods with more options
   getPaymentMethods(): string[] {
-    return ['Credit Card', 'Debit Card', 'PayPal', 'Apple Pay', 'Google Pay'];
+    return [
+      'Credit Card', 
+      'Debit Card', 
+      'PayPal', 
+      'Apple Pay', 
+      'Google Pay',
+      'PhonePe',
+      'Bank Transfer'
+    ];
   }
 
   // Calculate fees

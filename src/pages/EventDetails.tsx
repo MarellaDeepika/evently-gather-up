@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
@@ -10,6 +9,7 @@ import { authService } from "@/services/authService";
 import { emailService } from "@/services/emailService";
 import { qrService } from "@/services/qrService";
 import { paymentService, PaymentData } from "@/services/paymentService";
+import { bankPaymentService } from "@/services/bankPaymentService";
 import { couponService } from "@/services/couponService";
 import EventDetailsNavigation from "@/components/events/EventDetailsNavigation";
 import EventHeader from "@/components/events/EventHeader";
@@ -37,13 +37,48 @@ const EventDetails = () => {
   });
   const [paymentMethod, setPaymentMethod] = useState("Credit Card");
 
-  // Load event data
+  // Check authentication - redirect if not logged in
   useEffect(() => {
-    if (id) {
+    if (!user) {
+      return;
+    }
+  }, [user]);
+
+  // Load event data only if user is authenticated
+  useEffect(() => {
+    if (id && user) {
       const loadedEvent = eventService.getEventById(parseInt(id));
       setEvent(loadedEvent);
     }
-  }, [id]);
+  }, [id, user]);
+
+  // If user is not logged in, show login prompt
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50">
+        <EventDetailsNavigation />
+        
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+          <div className="text-center">
+            <h1 className="text-4xl font-bold text-gray-900 mb-6">
+              Sign In Required
+            </h1>
+            <p className="text-xl text-gray-600 mb-8">
+              Please sign in to view event details and book tickets
+            </p>
+            <div className="flex justify-center space-x-4">
+              <Button asChild size="lg">
+                <Link to="/login">Sign In</Link>
+              </Button>
+              <Button variant="outline" asChild size="lg">
+                <Link to="/signup">Create Account</Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const handleCouponApply = () => {
     if (!event || !couponCode.trim()) return;
@@ -53,7 +88,7 @@ const EventDetails = () => {
     if (result.valid && result.coupon && result.discount !== undefined) {
       setAppliedCoupon({
         ...result.coupon,
-        discountAmount: result.discount / 100 // Convert back to dollars
+        discountAmount: result.discount / 100
       });
       toast({
         title: "Coupon Applied!",
@@ -182,34 +217,61 @@ const EventDetails = () => {
         ? Math.max(0, event.price - appliedCoupon.discountAmount)
         : event.price;
 
-      const paymentData: PaymentData = {
-        amount: finalAmount * 100,
-        currency: 'usd',
-        eventId: event.id,
-        ticketType: appliedCoupon?.couponType === 'vip' ? 'vip' : 'general',
-        userInfo: {
-          firstName: registrationData.firstName,
-          lastName: registrationData.lastName,
-          email: registrationData.email,
-          phone: registrationData.phone
+      if (paymentMethod === 'Bank Transfer') {
+        const bankResult = await bankPaymentService.initiateTransfer({
+          amount: finalAmount,
+          eventId: event.id,
+          userInfo: {
+            firstName: registrationData.firstName,
+            lastName: registrationData.lastName,
+            email: registrationData.email,
+            phone: registrationData.phone
+          }
+        });
+
+        if (bankResult.success) {
+          toast({
+            title: "Bank Transfer Initiated!",
+            description: `Transfer ID: ${bankResult.transferId}`,
+          });
+          await processRegistration(bankResult.transferId);
+        } else {
+          toast({
+            title: "Transfer Failed",
+            description: bankResult.error || "Bank transfer failed.",
+            variant: "destructive",
+          });
         }
-      };
-
-      const result = await paymentService.processPayment(paymentData);
-
-      if (result.success) {
-        toast({
-          title: "Payment Successful!",
-          description: `Transaction ID: ${result.transactionId}`,
-        });
-        
-        await processRegistration(result.transactionId);
       } else {
-        toast({
-          title: "Payment Failed",
-          description: result.error || "Payment processing failed.",
-          variant: "destructive",
-        });
+        const paymentData: PaymentData = {
+          amount: finalAmount * 100,
+          currency: 'usd',
+          eventId: event.id,
+          ticketType: appliedCoupon?.couponType === 'vip' ? 'vip' : 'general',
+          userInfo: {
+            firstName: registrationData.firstName,
+            lastName: registrationData.lastName,
+            email: registrationData.email,
+            phone: registrationData.phone
+          }
+        };
+
+        const result = await paymentService.processPayment(paymentData);
+
+        if (result.success) {
+          toast({
+            title: "Payment Successful!",
+            description: `Transaction ID: ${result.transactionId}`,
+          });
+          
+          await processRegistration(result.transactionId);
+        } else {
+          toast({
+            title: "Payment Failed",
+            description: result.error || "Payment processing failed.",
+            variant: "destructive",
+          });
+        }
       }
     } catch (error) {
       toast({
@@ -252,7 +314,7 @@ const EventDetails = () => {
     );
   }
 
-  const isEventOwner = user && event.organizer === "Current User";
+  const isEventOwner = user && user.role === 'organizer' && event.organizerId === user.id;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50">

@@ -1,7 +1,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Users, UserCheck, RotateCcw } from "lucide-react";
+import { Users, RotateCcw } from "lucide-react";
 import { authService } from "@/services/authService";
 import { useToast } from "@/hooks/use-toast";
 
@@ -14,17 +14,22 @@ const RoleSwitcher = ({ currentRole, onRoleChange }: RoleSwitcherProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
+  // Only show role switcher for organizers
+  if (currentRole !== 'organizer') {
+    return null;
+  }
+
   const handleRoleSwitch = async () => {
     setIsLoading(true);
-    const newRole = currentRole === 'organizer' ? 'attendee' : 'organizer';
+    const newRole = 'attendee'; // Organizers can only switch to attendee mode
     
     const success = authService.switchRole(newRole);
     
     if (success) {
       onRoleChange(newRole);
       toast({
-        title: "Role Switched",
-        description: `You are now in ${newRole} mode.`,
+        title: "Switched to Attendee Mode",
+        description: "You are now browsing as an attendee.",
       });
     } else {
       toast({
@@ -46,17 +51,8 @@ const RoleSwitcher = ({ currentRole, onRoleChange }: RoleSwitcherProps) => {
       className="flex items-center"
     >
       <RotateCcw className="h-4 w-4 mr-2" />
-      {currentRole === 'organizer' ? (
-        <>
-          <UserCheck className="h-4 w-4 mr-1" />
-          Switch to Attendee
-        </>
-      ) : (
-        <>
-          <Users className="h-4 w-4 mr-1" />
-          Switch to Organizer
-        </>
-      )}
+      <Users className="h-4 w-4 mr-1" />
+      Switch to Attendee View
     </Button>
   );
 };

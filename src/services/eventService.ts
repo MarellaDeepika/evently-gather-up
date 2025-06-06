@@ -1,196 +1,173 @@
-
 export interface Event {
   id: number;
   title: string;
   description: string;
-  category: string;
   date: string;
   time: string;
   location: string;
-  maxAttendees: number;
+  category: string;
   price: number;
-  image: string;
+  maxAttendees: number;
   attendees: number;
+  image: string;
   organizer: string;
-  organizerId: number; // Add organizer ID to track ownership
-  createdAt: string;
-  updatedAt: string;
+  organizerId: number;
 }
 
 export interface CreateEventData {
   title: string;
   description: string;
-  category: string;
   date: string;
   time: string;
   location: string;
-  maxAttendees: string;
-  price: string;
+  category: string;
+  price: number;
+  maxAttendees: number;
   image: string;
 }
 
 class EventService {
-  private storageKey = 'evently_events';
+  private eventsKey = 'evently_events';
 
-  // Get all events
-  getAllEvents(): Event[] {
-    const stored = localStorage.getItem(this.storageKey);
-    if (stored) {
-      return JSON.parse(stored);
-    }
-    
-    // Return default events if none stored
-    return this.getDefaultEvents();
+  constructor() {
+    this.initializeEvents();
   }
 
-  // Get event by ID
+  private initializeEvents() {
+    const existing = localStorage.getItem(this.eventsKey);
+    if (!existing) {
+      const sampleEvents: Event[] = [
+        {
+          id: 1,
+          title: "Tech Conference 2024",
+          description: "Join industry leaders for cutting-edge tech insights and networking opportunities. Learn about the latest trends in AI, blockchain, and cloud computing.",
+          date: "March 15, 2024",
+          time: "9:00 AM",
+          location: "San Francisco, CA",
+          category: "Technology",
+          price: 299,
+          maxAttendees: 500,
+          attendees: 245,
+          image: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&h=400&fit=crop",
+          organizer: "Tech Corp",
+          organizerId: 1
+        },
+        {
+          id: 2,
+          title: "Creative Workshop",
+          description: "Hands-on creative design workshop for professionals. Enhance your skills in graphic design, photography, and digital art.",
+          date: "March 22, 2024",
+          time: "10:00 AM",
+          location: "New York, NY",
+          category: "Workshop",
+          price: 150,
+          maxAttendees: 100,
+          attendees: 89,
+          image: "https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=800&h=400&fit=crop",
+          organizer: "Design Studio",
+          organizerId: 2
+        },
+        {
+          id: 3,
+          title: "Music Festival",
+          description: "Three days of amazing music and entertainment. Featuring top artists from around the world.",
+          date: "April 5-7, 2024",
+          time: "6:00 PM",
+          location: "Austin, TX",
+          category: "Music",
+          price: 450,
+          maxAttendees: 2000,
+          attendees: 1200,
+          image: "https://images.unsplash.com/photo-1459749411175-04bf5292ceea?w=800&h=400&fit=crop",
+          organizer: "Music Fest Inc",
+          organizerId: 3
+        },
+        {
+          id: 4,
+          title: "Business Conference",
+          description: "The premier event for business leaders and entrepreneurs. Network with industry experts and gain valuable insights.",
+          date: "April 12, 2024",
+          time: "8:30 AM",
+          location: "Chicago, IL",
+          category: "Business",
+          price: 399,
+          maxAttendees: 300,
+          attendees: 210,
+          image: "https://images.unsplash.com/photo-1507883245204-4b65e7000ffd?w=800&h=400&fit=crop",
+          organizer: "Biz Summit",
+          organizerId: 4
+        },
+        {
+          id: 5,
+          title: "Art Exhibition",
+          description: "A showcase of contemporary art from emerging artists. Explore diverse styles and mediums.",
+          date: "April 19, 2024",
+          time: "11:00 AM",
+          location: "Los Angeles, CA",
+          category: "Art",
+          price: 50,
+          maxAttendees: 150,
+          attendees: 112,
+          image: "https://images.unsplash.com/photo-1544620347-c4fd4a3d59a4?w=800&h=400&fit=crop",
+          organizer: "Art Gallery",
+          organizerId: 5
+        }
+      ];
+      localStorage.setItem(this.eventsKey, JSON.stringify(sampleEvents));
+    }
+  }
+
+  getAllEvents(): Event[] {
+    const stored = localStorage.getItem(this.eventsKey);
+    return stored ? JSON.parse(stored) : [];
+  }
+
   getEventById(id: number): Event | null {
     const events = this.getAllEvents();
     return events.find(event => event.id === id) || null;
   }
 
-  // Create new event
   createEvent(eventData: CreateEventData, organizerId: number): Event {
     const events = this.getAllEvents();
     const newEvent: Event = {
-      id: Date.now(), // Simple ID generation
-      title: eventData.title,
-      description: eventData.description,
-      category: eventData.category,
-      date: eventData.date,
-      time: eventData.time,
-      location: eventData.location,
-      maxAttendees: parseInt(eventData.maxAttendees) || 100,
-      price: parseFloat(eventData.price) || 0,
-      image: eventData.image || "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&h=400&fit=crop",
+      id: Date.now(),
+      ...eventData,
       attendees: 0,
-      organizer: "Current User", // In real app, this would be from auth
-      organizerId: organizerId,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      organizer: "Current User",
+      organizerId
     };
-
+    
     events.push(newEvent);
-    this.saveEvents(events);
+    localStorage.setItem(this.eventsKey, JSON.stringify(events));
     return newEvent;
   }
 
-  // Update event (only if user is the organizer)
-  updateEvent(id: number, updates: Partial<Event>, userId: number): Event | null {
+  updateEvent(id: number, updates: Partial<CreateEventData>, organizerId: number): Event | null {
     const events = this.getAllEvents();
     const eventIndex = events.findIndex(event => event.id === id);
     
     if (eventIndex === -1) return null;
     
     const event = events[eventIndex];
+    if (event.organizerId !== organizerId) return null;
     
-    // Check if user is the organizer
-    if (event.organizerId !== userId) return null;
-    
-    events[eventIndex] = {
-      ...events[eventIndex],
-      ...updates,
-      updatedAt: new Date().toISOString()
-    };
-    
-    this.saveEvents(events);
+    events[eventIndex] = { ...event, ...updates };
+    localStorage.setItem(this.eventsKey, JSON.stringify(events));
     return events[eventIndex];
   }
 
-  // Delete event (only if user is the organizer)
-  deleteEvent(id: number, userId: number): boolean {
-    const events = this.getAllEvents();
-    const event = events.find(e => e.id === id);
-    
-    if (!event || event.organizerId !== userId) return false;
-    
-    const filteredEvents = events.filter(event => event.id !== id);
-    this.saveEvents(filteredEvents);
-    return true;
-  }
-
-  // Register for event
   registerForEvent(eventId: number): boolean {
-    const event = this.getEventById(eventId);
-    if (!event || event.attendees >= event.maxAttendees) return false;
-    
-    this.updateEventAttendees(eventId, event.attendees + 1);
-    return true;
-  }
-
-  // Update attendees count without permission check
-  private updateEventAttendees(id: number, attendees: number): void {
     const events = this.getAllEvents();
-    const eventIndex = events.findIndex(event => event.id === id);
+    const eventIndex = events.findIndex(event => event.id === eventId);
     
-    if (eventIndex !== -1) {
-      events[eventIndex].attendees = attendees;
-      events[eventIndex].updatedAt = new Date().toISOString();
-      this.saveEvents(events);
-    }
-  }
-
-  private saveEvents(events: Event[]): void {
-    localStorage.setItem(this.storageKey, JSON.stringify(events));
-  }
-
-  private getDefaultEvents(): Event[] {
-    const defaultEvents = [
-      {
-        id: 1,
-        title: "Tech Conference 2024",
-        description: "Join industry leaders for cutting-edge tech insights and networking opportunities",
-        date: "March 15, 2024",
-        time: "9:00 AM",
-        location: "San Francisco, CA",
-        attendees: 245,
-        maxAttendees: 500,
-        price: 299,
-        image: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&h=400&fit=crop",
-        category: "Technology",
-        organizer: "Tech Events Inc.",
-        organizerId: 1,
-        createdAt: "2024-01-01T00:00:00.000Z",
-        updatedAt: "2024-01-01T00:00:00.000Z"
-      },
-      {
-        id: 2,
-        title: "Creative Workshop",
-        description: "Hands-on creative design workshop for professionals and enthusiasts",
-        date: "March 22, 2024",
-        time: "2:00 PM",
-        location: "New York, NY",
-        attendees: 89,
-        maxAttendees: 100,
-        price: 150,
-        image: "https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=800&h=400&fit=crop",
-        category: "Workshop",
-        organizer: "Creative Studio",
-        organizerId: 2,
-        createdAt: "2024-01-02T00:00:00.000Z",
-        updatedAt: "2024-01-02T00:00:00.000Z"
-      },
-      {
-        id: 3,
-        title: "Music Festival",
-        description: "Three days of amazing music and entertainment with top artists",
-        date: "April 5, 2024",
-        time: "6:00 PM",
-        location: "Austin, TX",
-        attendees: 1200,
-        maxAttendees: 5000,
-        price: 450,
-        image: "https://images.unsplash.com/photo-1459749411175-04bf5292ceea?w=800&h=400&fit=crop",
-        category: "Music",
-        organizer: "Festival Productions",
-        organizerId: 3,
-        createdAt: "2024-01-03T00:00:00.000Z",
-        updatedAt: "2024-01-03T00:00:00.000Z"
-      }
-    ];
-
-    this.saveEvents(defaultEvents);
-    return defaultEvents;
+    if (eventIndex === -1) return false;
+    
+    const event = events[eventIndex];
+    if (event.attendees >= event.maxAttendees) return false;
+    
+    events[eventIndex] = { ...event, attendees: event.attendees + 1 };
+    localStorage.setItem(this.eventsKey, JSON.stringify(events));
+    return true;
   }
 }
 
