@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Share2, Heart, Edit } from "lucide-react";
 import { Event } from "@/services/eventService";
+import { authService } from "@/services/authService";
 
 interface EventHeaderProps {
   event: Event;
@@ -12,6 +13,9 @@ interface EventHeaderProps {
 }
 
 const EventHeader = ({ event, isEventOwner, onShare, onEdit }: EventHeaderProps) => {
+  const user = authService.getCurrentUser();
+  const canEdit = user?.role === 'organizer' && isEventOwner;
+
   return (
     <div className="relative h-96 rounded-2xl overflow-hidden">
       <img 
@@ -31,7 +35,7 @@ const EventHeader = ({ event, isEventOwner, onShare, onEdit }: EventHeaderProps)
         <Button variant="secondary" size="sm">
           <Heart className="h-4 w-4" />
         </Button>
-        {isEventOwner && (
+        {canEdit && (
           <Button variant="secondary" size="sm" onClick={onEdit}>
             <Edit className="h-4 w-4" />
           </Button>

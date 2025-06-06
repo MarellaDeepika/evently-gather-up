@@ -12,6 +12,7 @@ export interface Event {
   image: string;
   attendees: number;
   organizer: string;
+  organizerId: number; // Add organizer ID to track ownership
   createdAt: string;
   updatedAt: string;
 }
@@ -49,7 +50,7 @@ class EventService {
   }
 
   // Create new event
-  createEvent(eventData: CreateEventData): Event {
+  createEvent(eventData: CreateEventData, organizerId: number): Event {
     const events = this.getAllEvents();
     const newEvent: Event = {
       id: Date.now(), // Simple ID generation
@@ -64,6 +65,7 @@ class EventService {
       image: eventData.image || "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&h=400&fit=crop",
       attendees: 0,
       organizer: "Current User", // In real app, this would be from auth
+      organizerId: organizerId,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -73,12 +75,17 @@ class EventService {
     return newEvent;
   }
 
-  // Update event
-  updateEvent(id: number, updates: Partial<Event>): Event | null {
+  // Update event (only if user is the organizer)
+  updateEvent(id: number, updates: Partial<Event>, userId: number): Event | null {
     const events = this.getAllEvents();
     const eventIndex = events.findIndex(event => event.id === id);
     
     if (eventIndex === -1) return null;
+    
+    const event = events[eventIndex];
+    
+    // Check if user is the organizer
+    if (event.organizerId !== userId) return null;
     
     events[eventIndex] = {
       ...events[eventIndex],
@@ -90,13 +97,14 @@ class EventService {
     return events[eventIndex];
   }
 
-  // Delete event
-  deleteEvent(id: number): boolean {
+  // Delete event (only if user is the organizer)
+  deleteEvent(id: number, userId: number): boolean {
     const events = this.getAllEvents();
+    const event = events.find(e => e.id === id);
+    
+    if (!event || event.organizerId !== userId) return false;
+    
     const filteredEvents = events.filter(event => event.id !== id);
-    
-    if (filteredEvents.length === events.length) return false;
-    
     this.saveEvents(filteredEvents);
     return true;
   }
@@ -106,8 +114,20 @@ class EventService {
     const event = this.getEventById(eventId);
     if (!event || event.attendees >= event.maxAttendees) return false;
     
-    this.updateEvent(eventId, { attendees: event.attendees + 1 });
+    this.updateEventAttendees(eventId, event.attendees + 1);
     return true;
+  }
+
+  // Update attendees count without permission check
+  private updateEventAttendees(id: number, attendees: number): void {
+    const events = this.getAllEvents();
+    const eventIndex = events.findIndex(event => event.id === id);
+    
+    if (eventIndex !== -1) {
+      events[eventIndex].attendees = attendees;
+      events[eventIndex].updatedAt = new Date().toISOString();
+      this.saveEvents(events);
+    }
   }
 
   private saveEvents(events: Event[]): void {
@@ -129,6 +149,7 @@ class EventService {
         image: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&h=400&fit=crop",
         category: "Technology",
         organizer: "Tech Events Inc.",
+        organizerId: 1,
         createdAt: "2024-01-01T00:00:00.000Z",
         updatedAt: "2024-01-01T00:00:00.000Z"
       },
@@ -145,6 +166,7 @@ class EventService {
         image: "https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=800&h=400&fit=crop",
         category: "Workshop",
         organizer: "Creative Studio",
+        organizerId: 2,
         createdAt: "2024-01-02T00:00:00.000Z",
         updatedAt: "2024-01-02T00:00:00.000Z"
       },
@@ -161,6 +183,7 @@ class EventService {
         image: "https://images.unsplash.com/photo-1459749411175-04bf5292ceea?w=800&h=400&fit=crop",
         category: "Music",
         organizer: "Festival Productions",
+        organizerId: 3,
         createdAt: "2024-01-03T00:00:00.000Z",
         updatedAt: "2024-01-03T00:00:00.000Z"
       }

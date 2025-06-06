@@ -36,6 +36,18 @@ class AuthService {
     return this.getCurrentUser() !== null;
   }
 
+  // Check if current user is organizer
+  isOrganizer(): boolean {
+    const user = this.getCurrentUser();
+    return user?.role === 'organizer';
+  }
+
+  // Check if current user is attendee
+  isAttendee(): boolean {
+    const user = this.getCurrentUser();
+    return user?.role === 'attendee';
+  }
+
   // Login
   login(loginData: LoginData): { success: boolean; user?: User; error?: string } {
     const users = this.getUsers();
@@ -50,7 +62,7 @@ class AuthService {
     return { success: true, user };
   }
 
-  // Signup
+  // Signup/Register
   signup(signupData: SignupData): { success: boolean; user?: User; error?: string } {
     const users = this.getUsers();
     
@@ -72,6 +84,30 @@ class AuthService {
     localStorage.setItem(this.userKey, JSON.stringify(newUser));
     
     return { success: true, user: newUser };
+  }
+
+  // Register method (alias for signup for compatibility)
+  register(signupData: SignupData): { success: boolean; user?: User; error?: string } {
+    return this.signup(signupData);
+  }
+
+  // Switch user role (for demo purposes)
+  switchRole(newRole: 'organizer' | 'attendee'): boolean {
+    const user = this.getCurrentUser();
+    if (!user) return false;
+
+    const updatedUser = { ...user, role: newRole };
+    localStorage.setItem(this.userKey, JSON.stringify(updatedUser));
+    
+    // Update in users array
+    const users = this.getUsers();
+    const userIndex = users.findIndex(u => u.id === user.id);
+    if (userIndex !== -1) {
+      users[userIndex] = updatedUser;
+      this.saveUsers(users);
+    }
+
+    return true;
   }
 
   // Logout

@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import { authService } from "@/services/authService";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
+import RoleSwitcher from "@/components/auth/RoleSwitcher";
 
 const EventsNavigation = () => {
   const [user, setUser] = useState(authService.getCurrentUser());
@@ -29,6 +30,10 @@ const EventsNavigation = () => {
     });
   };
 
+  const handleRoleChange = (newRole: 'organizer' | 'attendee') => {
+    setUser(prev => prev ? { ...prev, role: newRole } : null);
+  };
+
   return (
     <nav className="bg-white/80 backdrop-blur-md border-b">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -44,16 +49,22 @@ const EventsNavigation = () => {
             <Link to="/dashboard" className="text-gray-700 hover:text-blue-600 transition-colors">
               Dashboard
             </Link>
-            <Link to="/create-event" className="text-gray-700 hover:text-blue-600 transition-colors">
-              Create Event
-            </Link>
+            {user?.role === 'organizer' && (
+              <Link to="/create-event" className="text-gray-700 hover:text-blue-600 transition-colors">
+                Create Event
+              </Link>
+            )}
           </div>
           <div className="flex items-center space-x-4">
             {user ? (
               <div className="flex items-center space-x-4">
                 <span className="text-sm text-gray-600">
-                  Hello, {user.firstName}
+                  Hello, {user.firstName} ({user.role})
                 </span>
+                <RoleSwitcher 
+                  currentRole={user.role} 
+                  onRoleChange={handleRoleChange}
+                />
                 <Button variant="outline" onClick={handleLogout}>
                   <LogOut className="h-4 w-4 mr-2" />
                   Sign Out

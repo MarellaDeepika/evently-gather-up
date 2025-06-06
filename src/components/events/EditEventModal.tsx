@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { eventService, Event } from "@/services/eventService";
+import { authService } from "@/services/authService";
 
 interface EditEventModalProps {
   event: Event | null;
@@ -29,6 +30,7 @@ const EditEventModal = ({ event, isOpen, onClose, onSave }: EditEventModalProps)
     image: ""
   });
   const { toast } = useToast();
+  const user = authService.getCurrentUser();
 
   useEffect(() => {
     if (event) {
@@ -47,7 +49,17 @@ const EditEventModal = ({ event, isOpen, onClose, onSave }: EditEventModalProps)
   }, [event]);
 
   const handleSave = () => {
-    if (!event) return;
+    if (!event || !user) return;
+
+    // Check if user is organizer and owns the event
+    if (user.role !== 'organizer' || event.organizerId !== user.id) {
+      toast({
+        title: "Permission Denied",
+        description: "Only the event organizer can edit this event.",
+        variant: "destructive"
+      });
+      return;
+    }
 
     const updatedEvent = eventService.updateEvent(event.id, {
       title: formData.title,
@@ -59,7 +71,7 @@ const EditEventModal = ({ event, isOpen, onClose, onSave }: EditEventModalProps)
       maxAttendees: parseInt(formData.maxAttendees),
       price: parseFloat(formData.price),
       image: formData.image
-    });
+    }, user.id);
 
     if (updatedEvent) {
       onSave(updatedEvent);
@@ -71,7 +83,7 @@ const EditEventModal = ({ event, isOpen, onClose, onSave }: EditEventModalProps)
     } else {
       toast({
         title: "Update Failed",
-        description: "Failed to update the event. Please try again.",
+        description: "Failed to update the event. You may not have permission.",
         variant: "destructive"
       });
     }

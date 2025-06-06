@@ -22,12 +22,12 @@ const Login = () => {
     setIsLoading(true);
 
     try {
-      const result = await authService.login(email, password);
+      const result = authService.login({ email, password });
       
       if (result.success) {
         toast({
           title: "Welcome back!",
-          description: "You have been successfully logged in.",
+          description: `You have been successfully logged in as ${result.user?.role}.`,
         });
         navigate("/");
       } else {

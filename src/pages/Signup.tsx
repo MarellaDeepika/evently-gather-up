@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Calendar, Users, UserCheck } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { authService } from "@/services/authService";
@@ -17,7 +18,8 @@ const Signup = () => {
     lastName: "",
     email: "",
     password: "",
-    confirmPassword: ""
+    confirmPassword: "",
+    role: "" as 'organizer' | 'attendee' | ""
   });
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
@@ -30,6 +32,17 @@ const Signup = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+
+    // Validate role selection
+    if (!formData.role) {
+      toast({
+        title: "Role Required",
+        description: "Please select whether you're an organizer or attendee.",
+        variant: "destructive",
+      });
+      setIsLoading(false);
+      return;
+    }
 
     // Validate password
     const passwordValidation = validatePassword(formData.password);
@@ -55,17 +68,18 @@ const Signup = () => {
     }
 
     try {
-      const result = await authService.register(
-        formData.email,
-        formData.password,
-        formData.firstName,
-        formData.lastName
-      );
+      const result = authService.signup({
+        email: formData.email,
+        password: formData.password,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        role: formData.role
+      });
       
       if (result.success) {
         toast({
           title: "Account created successfully!",
-          description: "Welcome to Evently. You can now start exploring events.",
+          description: `Welcome to Evently as ${formData.role}! You can now start exploring events.`,
         });
         navigate("/");
       } else {
@@ -107,6 +121,29 @@ const Signup = () => {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="role">I am a *</Label>
+                <Select value={formData.role} onValueChange={(value: 'organizer' | 'attendee') => handleInputChange('role', value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select your role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="organizer">
+                      <div className="flex items-center">
+                        <Users className="h-4 w-4 mr-2" />
+                        Event Organizer
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="attendee">
+                      <div className="flex items-center">
+                        <UserCheck className="h-4 w-4 mr-2" />
+                        Event Attendee
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="firstName">First Name</Label>
