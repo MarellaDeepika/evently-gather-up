@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -10,10 +10,12 @@ import { Calendar, MapPin, Users, Clock, DollarSign, Image as ImageIcon, Save, A
 import { Link, useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { eventService, CreateEventData } from "@/services/eventService";
+import { authService } from "@/services/authService";
 
 const CreateEvent = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
+  const [user, setUser] = useState(authService.getCurrentUser());
   const [formData, setFormData] = useState<CreateEventData>({
     title: "",
     description: "",
@@ -21,14 +23,33 @@ const CreateEvent = () => {
     date: "",
     time: "",
     location: "",
-    maxAttendees: "",
-    price: "",
+    maxAttendees: 0,
+    price: 0,
     image: ""
   });
 
+  // Check authentication and role
+  useEffect(() => {
+    const currentUser = authService.getCurrentUser();
+    if (!currentUser) {
+      navigate('/login');
+      return;
+    }
+    if (currentUser.role !== 'organizer') {
+      toast({
+        title: "Access Denied",
+        description: "Only organizers can create events.",
+        variant: "destructive",
+      });
+      navigate('/events');
+      return;
+    }
+    setUser(currentUser);
+  }, [navigate, toast]);
+
   const categories = ["Technology", "Workshop", "Music", "Business", "Art", "Fitness", "Food", "Sports", "Education"];
 
-  const handleInputChange = (field: keyof CreateEventData, value: string) => {
+  const handleInputChange = (field: keyof CreateEventData, value: string | number) => {
     setFormData(prev => ({
       ...prev,
       [field]: value
@@ -37,6 +58,8 @@ const CreateEvent = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!user) return;
     
     // Basic validation
     if (!formData.title || !formData.description || !formData.category || !formData.date || !formData.time || !formData.location) {
@@ -49,8 +72,8 @@ const CreateEvent = () => {
     }
 
     try {
-      // Create event using the service
-      const newEvent = eventService.createEvent(formData);
+      // Create event using the service with organizerId
+      const newEvent = eventService.createEvent(formData, user.id);
       
       toast({
         title: "Event Created Successfully!",
@@ -65,12 +88,12 @@ const CreateEvent = () => {
         date: "",
         time: "",
         location: "",
-        maxAttendees: "",
-        price: "",
+        maxAttendees: 0,
+        price: 0,
         image: ""
       });
 
-      // Navigate to the events page or the new event's details
+      // Navigate to the events page
       setTimeout(() => {
         navigate('/events');
       }, 1500);
@@ -83,6 +106,10 @@ const CreateEvent = () => {
       });
     }
   };
+
+  if (!user || user.role !== 'organizer') {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50">
@@ -255,7 +282,7 @@ const CreateEvent = () => {
                       id="maxAttendees"
                       type="number"
                       value={formData.maxAttendees}
-                      onChange={(e) => handleInputChange("maxAttendees", e.target.value)}
+                      onChange={(e) => handleInputChange("maxAttendees", parseInt(e.target.value) || 0)}
                       placeholder="100"
                       className="mt-1"
                     />
@@ -269,7 +296,7 @@ const CreateEvent = () => {
                         id="price"
                         type="number"
                         value={formData.price}
-                        onChange={(e) => handleInputChange("price", e.target.value)}
+                        onChange={(e) => handleInputChange("price", parseFloat(e.target.value) || 0)}
                         placeholder="0.00"
                         className="pl-10"
                       />

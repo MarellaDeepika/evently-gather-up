@@ -1,11 +1,10 @@
-
 export interface Ticket {
   id: string;
   eventId: number;
   userId: number;
   ticketType: 'general' | 'vip' | 'early-bird';
   price: number;
-  status: 'active' | 'used' | 'cancelled';
+  status: 'active' | 'used';
   qrCode: string;
   purchaseDate: string;
   userInfo: {
@@ -80,27 +79,11 @@ class TicketService {
       return { valid: false, message: 'Ticket already used' };
     }
 
-    if (ticket.status === 'cancelled') {
-      return { valid: false, message: 'Ticket cancelled' };
-    }
-
     // Mark as used
     ticket.status = 'used';
     this.saveTickets(tickets);
 
     return { valid: true, ticket, message: 'Ticket validated successfully' };
-  }
-
-  // Cancel ticket
-  cancelTicket(ticketId: string): boolean {
-    const tickets = this.getAllTickets();
-    const ticket = tickets.find(t => t.id === ticketId);
-
-    if (!ticket || ticket.status === 'used') return false;
-
-    ticket.status = 'cancelled';
-    this.saveTickets(tickets);
-    return true;
   }
 
   private generateTicketId(): string {

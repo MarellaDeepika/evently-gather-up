@@ -14,22 +14,26 @@ const RoleSwitcher = ({ currentRole, onRoleChange }: RoleSwitcherProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
-  // Only show role switcher for organizers
-  if (currentRole !== 'organizer') {
+  // Check if user is actually an organizer (can switch both ways)
+  const user = authService.getCurrentUser();
+  const isActualOrganizer = user?.role === 'organizer' || (user && 'originalRole' in user && user.originalRole === 'organizer');
+
+  // Only show for organizers
+  if (!isActualOrganizer) {
     return null;
   }
 
   const handleRoleSwitch = async () => {
     setIsLoading(true);
-    const newRole = 'attendee'; // Organizers can only switch to attendee mode
+    const newRole = currentRole === 'organizer' ? 'attendee' : 'organizer';
     
     const success = authService.switchRole(newRole);
     
     if (success) {
       onRoleChange(newRole);
       toast({
-        title: "Switched to Attendee Mode",
-        description: "You are now browsing as an attendee.",
+        title: `Switched to ${newRole === 'organizer' ? 'Organizer' : 'Attendee'} Mode`,
+        description: `You are now browsing as ${newRole === 'organizer' ? 'an organizer' : 'an attendee'}.`,
       });
     } else {
       toast({
@@ -52,7 +56,7 @@ const RoleSwitcher = ({ currentRole, onRoleChange }: RoleSwitcherProps) => {
     >
       <RotateCcw className="h-4 w-4 mr-2" />
       <Users className="h-4 w-4 mr-1" />
-      Switch to Attendee View
+      Switch to {currentRole === 'organizer' ? 'Attendee' : 'Organizer'} View
     </Button>
   );
 };

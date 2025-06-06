@@ -36,6 +36,8 @@ const EventDetails = () => {
     specialRequests: ""
   });
   const [paymentMethod, setPaymentMethod] = useState("Credit Card");
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("Credit Card");
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
 
   // Check authentication - redirect if not logged in
   useEffect(() => {
@@ -300,6 +302,11 @@ const EventDetails = () => {
     }
   };
 
+  const handleBankTransfer = () => {
+    setSelectedPaymentMethod('Bank Transfer');
+    setShowPaymentModal(true);
+  };
+
   if (!event) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 flex items-center justify-center">
@@ -368,6 +375,36 @@ const EventDetails = () => {
         onClose={() => setShowEditModal(false)}
         onSave={(updatedEvent) => setEvent(updatedEvent)}
       />
+
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-white p-4">
+        <div className="flex justify-between items-center">
+          <div className="flex items-center">
+            <Button onClick={handleBankTransfer} variant="outline" className="mr-2">
+              Bank Transfer
+            </Button>
+            <Button onClick={() => setSelectedPaymentMethod('Credit Card')} variant="outline">
+              Credit Card
+            </Button>
+          </div>
+          <Button onClick={() => setShowPaymentModal(false)}>Cancel</Button>
+        </div>
+      </div>
+
+      {showPaymentModal && (
+        <div className="fixed top-0 left-0 right-0 bottom-0 bg-black bg-opacity-50 flex items-center justify-center">
+          <div className="bg-white p-8 rounded-lg shadow-lg">
+            <h2 className="text-2xl font-bold mb-4">Select Payment Method</h2>
+            <div className="flex justify-center space-x-4">
+              <Button onClick={handleBankTransfer} variant="outline" className="mr-2">
+                Bank Transfer
+              </Button>
+              <Button onClick={() => setSelectedPaymentMethod('Credit Card')} variant="outline">
+                Credit Card
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
