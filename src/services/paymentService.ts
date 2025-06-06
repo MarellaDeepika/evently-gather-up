@@ -38,27 +38,31 @@ class PaymentService {
     } else {
       return {
         success: false,
-        error: 'Payment declined. Please check your card details.'
+        error: 'Payment declined. Please check your payment details.'
       };
     }
   }
 
-  // Get payment methods with more options
+  // Get payment methods with more India-specific options
   getPaymentMethods(): string[] {
     return [
       'Credit Card', 
       'Debit Card', 
-      'PayPal', 
-      'Apple Pay', 
-      'Google Pay',
+      'UPI',
+      'PayTM',
       'PhonePe',
-      'Bank Transfer'
+      'Google Pay',
+      'Amazon Pay',
+      'Net Banking',
+      'BHIM',
+      'Freecharge',
+      'MobiKwik'
     ];
   }
 
-  // Calculate fees
+  // Calculate fees in INR
   calculateFees(amount: number): { subtotal: number; fees: number; total: number } {
-    const fees = Math.round(amount * 0.029 + 30); // 2.9% + $0.30 (typical Stripe fees)
+    const fees = Math.round(amount * 0.02 + 20); // 2% + ₹20 (typical Indian payment gateway fees)
     return {
       subtotal: amount,
       fees,

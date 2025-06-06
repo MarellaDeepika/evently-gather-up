@@ -1,9 +1,10 @@
+
 export interface Ticket {
   id: string;
   eventId: number;
   userId: number;
   ticketType: 'general' | 'vip' | 'early-bird';
-  price: number;
+  price: number; // Price in INR
   status: 'active' | 'used';
   qrCode: string;
   purchaseDate: string;
@@ -54,9 +55,9 @@ class TicketService {
       eventId: purchaseData.eventId,
       userId: userId,
       ticketType: purchaseData.ticketType,
-      price: eventPrice,
+      price: eventPrice, // Price in INR
       status: 'active',
-      qrCode: this.generateQRCode(),
+      qrCode: this.generateUniqueQRCode(purchaseData.eventId, userId, purchaseData.userInfo.email),
       purchaseDate: new Date().toISOString(),
       userInfo: purchaseData.userInfo
     };
@@ -87,12 +88,28 @@ class TicketService {
   }
 
   private generateTicketId(): string {
+    // Creates a more secure and unique ticket ID with timestamp and random string
     return `TKT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   }
 
-  private generateQRCode(): string {
-    // In real app, this would generate actual QR code
-    return `QR-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  private generateUniqueQRCode(eventId: number, userId: number, email: string): string {
+    // Generate a unique hash based on eventId, userId, email and current timestamp
+    const uniqueData = `E${eventId}U${userId}${email}${Date.now()}`;
+    const hash = this.hashString(uniqueData);
+    
+    // Create a QR code that contains the ticket ID and hash
+    // This is just a placeholder - in a real app this would generate an actual QR code
+    return `QR-${hash}-${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  private hashString(str: string): string {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    return Math.abs(hash).toString(16);
   }
 
   private saveTickets(tickets: Ticket[]): void {

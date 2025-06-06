@@ -1,6 +1,7 @@
+
 import { useState } from "react";
 import { Calendar, Users, BarChart3, Ticket, Settings, LogOut } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -10,6 +11,7 @@ import EventAnalytics from "@/components/analytics/EventAnalytics";
 
 const Dashboard = () => {
   const [user] = useState(authService.getCurrentUser());
+  const navigate = useNavigate();
 
   const handleSignOut = () => {
     authService.logout();
@@ -53,13 +55,15 @@ const Dashboard = () => {
               <Link to="/events" className="text-gray-700 hover:text-blue-600 transition-colors">
                 Browse Events
               </Link>
-              <Link to="/create-event" className="text-gray-700 hover:text-blue-600 transition-colors">
-                Create Event
-              </Link>
+              {user.role === 'organizer' && (
+                <Link to="/create-event" className="text-gray-700 hover:text-blue-600 transition-colors">
+                  Create Event
+                </Link>
+              )}
             </div>
             <div className="flex items-center space-x-4">
               <span className="text-sm text-gray-600">
-                Welcome, {user?.firstName}!
+                Welcome, {user?.firstName}! ({user.role})
               </span>
               <Button variant="outline" onClick={handleSignOut}>
                 <LogOut className="h-4 w-4 mr-2" />
@@ -97,17 +101,31 @@ const Dashboard = () => {
           </TabsContent>
 
           <TabsContent value="events" className="mt-6">
-            <div className="text-center py-12">
-              <Users className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">No events created yet</h3>
-              <p className="text-gray-600 mb-4">Start creating amazing events for your community!</p>
-              <Button asChild>
-                <Link to="/create-event">
-                  <Calendar className="h-4 w-4 mr-2" />
-                  Create Your First Event
-                </Link>
-              </Button>
-            </div>
+            {user.role === 'organizer' ? (
+              <div className="text-center py-12">
+                <Users className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">No events created yet</h3>
+                <p className="text-gray-600 mb-4">Start creating amazing events for your community!</p>
+                <Button asChild>
+                  <Link to="/create-event">
+                    <Calendar className="h-4 w-4 mr-2" />
+                    Create Your First Event
+                  </Link>
+                </Button>
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <Users className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">Attendee View</h3>
+                <p className="text-gray-600 mb-4">As an attendee, you can browse and book events</p>
+                <Button asChild>
+                  <Link to="/events">
+                    <Calendar className="h-4 w-4 mr-2" />
+                    Browse Events
+                  </Link>
+                </Button>
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="analytics" className="mt-6">

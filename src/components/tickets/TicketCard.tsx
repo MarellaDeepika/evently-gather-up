@@ -2,7 +2,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, MapPin, Download, Share2, QrCode, Star } from "lucide-react";
+import { Calendar, MapPin, Download, Share2, QrCode } from "lucide-react";
 import { Ticket } from "@/services/ticketService";
 import { qrService } from "@/services/qrService";
 import { useToast } from "@/hooks/use-toast";
@@ -81,7 +81,7 @@ const TicketCard = ({ ticket, eventTitle, eventDate, eventLocation }: TicketCard
             </Badge>
           </div>
           <div className="text-right">
-            <div className="text-2xl font-bold">${ticket.price}</div>
+            <div className="text-2xl font-bold">₹{ticket.price}</div>
             <div className="text-sm opacity-90">{ticket.ticketType}</div>
           </div>
         </div>

@@ -1,4 +1,3 @@
-
 export interface BankAccount {
   accountNumber: string;
   routingNumber: string;
@@ -56,6 +55,11 @@ class BankPaymentService {
       transactionId,
       estimatedClearingTime: '1-3 business days'
     };
+  }
+
+  // Add the missing method that's causing the build error
+  async initiateTransfer(data: any): Promise<BankTransferResult> {
+    return this.processBankTransfer(data);
   }
 
   // Get supported banks
